@@ -1,5 +1,9 @@
 package leeloo
 
+
+import (
+	"fmt"
+)
 //CowHashTable.go
 //Author:zhibinwang
 //Data:2018
@@ -35,25 +39,7 @@ func (b *Bucket) incRef() {
 	b._ref++
 }
 
-func NewCowHashTable() *CowHashTable {
-	return &CowHashTable{_nbucket: 0, _factor: 0, _nitem: 0}
-}
 
-func (ht *CowHashTable) Init(nbucket int, factor int, handler HashTableHandler) {
-	ht._nbucket = nbucket
-	ht._factor = factor
-	ht._table = make([]*Bucket, ht._nbucket+1)
-	ht._handler = handler
-}
-func (ht *CowHashTable) isInit() bool {
-
-	if nil != ht._table {
-		return true
-	} else {
-		return false
-	}
-
-}
 func (ht *CowHashTable) chain_dec(begin *Bucket, end *Bucket) {
 
 	for ; begin != end; begin = begin._next {
@@ -69,6 +55,30 @@ func (ht *CowHashTable) chain_inc(begin *Bucket, end *Bucket) {
 
 }
 
+func NewCowHashTable() *CowHashTable {
+	return &CowHashTable{_nbucket: 0, _factor: 0, _nitem: 0}
+}
+
+func (ht *CowHashTable) Init(nbucket int, factor int, handler HashTableHandler) {
+	ht._nbucket = nbucket
+	ht._factor = factor
+	ht._table = make([]*Bucket, ht._nbucket + 1)
+	ht._handler = handler
+}
+func (ht *CowHashTable) isInit() bool {
+
+	if nil != ht._table {
+		return true
+	} else {
+		return false
+	}
+
+}
+func CowHashTableCopy(rht *CowHashTable) *CowHashTable {
+	ht := NewCowHashTable()
+	ht.CowCopy(rht)
+	return ht
+}
 //copy cowhashtable another one, share the same memory
 func (ht *CowHashTable) CowCopy(rht *CowHashTable) *CowHashTable {
 	if !rht.isInit() {
@@ -78,7 +88,7 @@ func (ht *CowHashTable) CowCopy(rht *CowHashTable) *CowHashTable {
 	ht._factor = rht._factor
 	ht._nitem = rht._nitem
 	ht._handler = rht._handler
-	ht._table = make([]*Bucket, rht._nbucket+1)
+	ht._table = make([]*Bucket, rht._nbucket + 1)
 
 	for i := 0; i < ht._nbucket; i++ {
 		ht._table[i] = rht._table[i]
@@ -207,6 +217,7 @@ func (ht *CowHashTable) Erase(key interface{}) bool {
 // are generally near but less than 2, using 190 rather than 200
 // here guarantees primes in the sequence are not skipped.
 func (ht *CowHashTable) isResize() bool {
+	
 	if (ht._nbucket * ht._factor) < (ht._nitem * 100) {
 		return ht.resize(ht._nitem * 190 / ht._factor)
 	}
@@ -218,7 +229,6 @@ func (ht *CowHashTable) isResize() bool {
 //   nbucket2  intended number of buckets
 // Returns: resized or not
 func (ht *CowHashTable) resize(nbucket2 int) bool {
-
 	nbucket2 = find_prime(nbucket2)
 	//no space malloc
 	if ht._nbucket == nbucket2 {
@@ -287,7 +297,9 @@ func (ht *CowHashTable) Seek(key interface{}) interface{} {
 
 	return nil
 }
-
+func (ht *CowHashTable) PrintInfo() string{
+	return fmt.Sprintf("nbucket:%d ,factor:%d ,nitem:%d", ht._nbucket, ht._factor, ht._nitem)
+}
 //find next prime number
 func find_prime(nbucket int) int {
 
