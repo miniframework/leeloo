@@ -101,7 +101,7 @@ func (ht *CowHashTable) CowCopy(rht *CowHashTable) *CowHashTable {
 //insert one item to CowHashTable
 //key: any type
 //item: any type
-//Return  insert item
+//Return  insert item or nil 
 func (ht *CowHashTable) Insert(key interface{}, item interface{}) interface{} {
 
 	bkt := ht._handler.Hash_key(key) % ht._nbucket
@@ -117,7 +117,7 @@ func (ht *CowHashTable) Insert(key interface{}, item interface{}) interface{} {
 
 		if ht.isResize() { // re-calculate bucket
 			bkt = ht._handler.Hash_key(key) % ht._nbucket
-		}
+		} 
 
 		head_bucket := &Bucket{_ref: 1, _item: item}
 

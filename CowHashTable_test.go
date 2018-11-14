@@ -2,6 +2,7 @@ package leeloo
 
 import (
     "testing"
+    "fmt"
 )
 
 type mapHandler struct {
@@ -27,7 +28,24 @@ func (m *mapHandler) Get_key(item interface{}) interface{} {
 	return item.(*tuple).key
 }
 
-
+func Benchmark_HashTable_Insert(b *testing.B) {
+	
+	handler := &mapHandler{}
+	hashTable := NewCowHashTable()
+	hashTable.Init(10, 10, handler)
+    for i := 0; i < 1000; i++ { //use b.N for looping 
+        item := &tuple{i, fmt.Sprintf("abc%d", i) }
+		hashTable.Insert(i, item)
+    }
+}
+func Benchmark_Map_Insert(b *testing.B) {
+	
+	var m map[int]string
+	m = make(map[int]string)
+    for i := 0; i < 1000; i++ { //use b.N for looping 
+		m[i]=fmt.Sprintf("abc%d", i)
+    }
+}
 
 func Test_HashTable(t *testing.T) {
 	item1 := &tuple{3, "aaa"}
