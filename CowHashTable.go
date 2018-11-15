@@ -185,6 +185,7 @@ func (ht *CowHashTable) Remove(key interface{}) bool {
 	}
 	return true
 }
+
 //erase the value match key from CowHashTable
 //Return
 //		 true:one item was earsed ,
@@ -312,6 +313,7 @@ func (ht *CowHashTable) Clear() {
 		ht._table = nil
 	}
 }
+
 //search match key from CowHashTable
 //Return item address
 func (ht *CowHashTable) Find(key interface{}, cluster interface{}) interface{} {
@@ -319,7 +321,11 @@ func (ht *CowHashTable) Find(key interface{}, cluster interface{}) interface{} {
 	bkt := ht._handler.Hash_key(key) % ht._nbucket
 	bucket := ht._table[bkt]
 	for nil != bucket {
-		if ht._handler.Eq_key(key, bucket._item) && cluster != nil && ht._handler.Eq_cluster(cluster, bucket._item){
+
+		if ht._handler.Eq_key(key, bucket._item) && cluster == nil {
+			return bucket._item
+		}
+		if ht._handler.Eq_key(key, bucket._item) && ht._handler.Eq_cluster(cluster, bucket._item) {
 			return bucket._item
 		}
 		bucket = bucket._next
@@ -327,11 +333,11 @@ func (ht *CowHashTable) Find(key interface{}, cluster interface{}) interface{} {
 
 	return nil
 }
+
 //search match key from CowHashTable
 //Return item address
 func (ht *CowHashTable) Seek(key interface{}) []interface{} {
 
-	
 	var buf []interface{}
 	bkt := ht._handler.Hash_key(key) % ht._nbucket
 	bucket := ht._table[bkt]
@@ -340,6 +346,18 @@ func (ht *CowHashTable) Seek(key interface{}) []interface{} {
 			buf = append(buf, bucket._item)
 		}
 		bucket = bucket._next
+	}
+	return buf
+}
+func (ht *CowHashTable) GetAll() []interface{} {
+
+	var buf []interface{}
+	for i := 0; i < ht._nbucket; i++ {
+		bucket := ht._table[i]
+		for nil != bucket {
+			buf = append(buf, bucket._item)
+			bucket = bucket._next
+		}
 	}
 	return buf
 }
