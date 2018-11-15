@@ -1,9 +1,9 @@
 package leeloo
 
-
 import (
 	"fmt"
 )
+
 //CowHashTable.go
 //Author:zhibinwang
 //Data:2018
@@ -12,6 +12,7 @@ import (
 type HashTableHandler interface {
 	Hash_key(key interface{}) int
 	Eq_key(key interface{}, item interface{}) bool
+	Eq_cluster(key interface{}, item interface{}) bool
 	Get_key(item interface{}) interface{}
 }
 
@@ -39,7 +40,6 @@ func (b *Bucket) incRef() {
 	b._ref++
 }
 
-
 func (ht *CowHashTable) chain_dec(begin *Bucket, end *Bucket) {
 
 	for ; begin != end; begin = begin._next {
@@ -62,7 +62,7 @@ func NewCowHashTable() *CowHashTable {
 func (ht *CowHashTable) Init(nbucket int, factor int, handler HashTableHandler) {
 	ht._nbucket = nbucket
 	ht._factor = factor
-	ht._table = make([]*Bucket, ht._nbucket + 1)
+	ht._table = make([]*Bucket, ht._nbucket+1)
 	ht._handler = handler
 }
 func (ht *CowHashTable) isInit() bool {
@@ -79,6 +79,7 @@ func CowHashTableCopy(rht *CowHashTable) *CowHashTable {
 	ht.CowCopy(rht)
 	return ht
 }
+
 //copy cowhashtable another one, share the same memory
 func (ht *CowHashTable) CowCopy(rht *CowHashTable) *CowHashTable {
 	if !rht.isInit() {
@@ -88,7 +89,7 @@ func (ht *CowHashTable) CowCopy(rht *CowHashTable) *CowHashTable {
 	ht._factor = rht._factor
 	ht._nitem = rht._nitem
 	ht._handler = rht._handler
-	ht._table = make([]*Bucket, rht._nbucket + 1)
+	ht._table = make([]*Bucket, rht._nbucket+1)
 
 	for i := 0; i < ht._nbucket; i++ {
 		ht._table[i] = rht._table[i]
@@ -101,14 +102,22 @@ func (ht *CowHashTable) CowCopy(rht *CowHashTable) *CowHashTable {
 //insert one item to CowHashTable
 //key: any type
 //item: any type
-//Return  insert item or nil 
-func (ht *CowHashTable) Insert(key interface{}, item interface{}) interface{} {
+//Return  insert item or nil
+func (ht *CowHashTable) Insert(key interface{}, cluster interface{}, item interface{}) interface{} {
 
 	bkt := ht._handler.Hash_key(key) % ht._nbucket
 
 	bucket := ht._table[bkt]
 	//find not equal from head to end bucket,
-	for nil != bucket && !ht._handler.Eq_key(key, bucket._item) {
+	for nil != bucket {
+		//if only unique key and equal break
+		if ht._handler.Eq_key(key, bucket._item) && cluster == nil {
+			break
+		}
+		//if  unique key and cluster key bath equal break
+		if ht._handler.Eq_key(key, bucket._item) && ht._handler.Eq_cluster(cluster, bucket._item) {
+			break
+		}
 		bucket = bucket._next
 	}
 
@@ -117,7 +126,7 @@ func (ht *CowHashTable) Insert(key interface{}, item interface{}) interface{} {
 
 		if ht.isResize() { // re-calculate bucket
 			bkt = ht._handler.Hash_key(key) % ht._nbucket
-		} 
+		}
 
 		head_bucket := &Bucket{_ref: 1, _item: item}
 
@@ -126,7 +135,6 @@ func (ht *CowHashTable) Insert(key interface{}, item interface{}) interface{} {
 		ht._table[bkt] = head_bucket
 
 		ht._nitem++
-
 		return head_bucket._item
 	}
 	//if not CowCopy replace new item
@@ -162,22 +170,45 @@ func (ht *CowHashTable) Insert(key interface{}, item interface{}) interface{} {
 	ht._table[bkt] = new_bucket
 	return new_bucket._item
 }
+func (ht *CowHashTable) Remove(key interface{}) bool {
 
+	bkt := ht._handler.Hash_key(key) % ht._nbucket
+	bucket := ht._table[bkt]
+	for nil != bucket {
+		if ht._handler.Eq_key(key, bucket._item) {
+			ret := ht.Erase(key, nil)
+			if !ret {
+				return false
+			}
+		}
+		bucket = bucket._next
+	}
+	return true
+}
 //erase the value match key from CowHashTable
 //Return
 //		 true:one item was earsed ,
 //		 false:nothing match
-func (ht *CowHashTable) Erase(key interface{}) bool {
+func (ht *CowHashTable) Erase(key interface{}, cluster interface{}) bool {
 
 	bkt := ht._handler.Hash_key(key) % ht._nbucket
 	bucket := ht._table[bkt]
 	prior_next := &(ht._table[bkt])
 
 	//find next equal item
-	for nil != bucket && !ht._handler.Eq_key(key, bucket._item) {
+	for nil != bucket {
+		//if only unique key and equal break
+		if ht._handler.Eq_key(key, bucket._item) && cluster == nil {
+			break
+		}
+		//if  unique key and cluster key bath equal break
+		if ht._handler.Eq_key(key, bucket._item) && ht._handler.Eq_cluster(cluster, bucket._item) {
+			break
+		}
 		prior_next = &bucket._next
 		bucket = bucket._next
 	}
+
 	//no equal item
 	if nil == bucket {
 		return false
@@ -217,7 +248,7 @@ func (ht *CowHashTable) Erase(key interface{}) bool {
 // are generally near but less than 2, using 190 rather than 200
 // here guarantees primes in the sequence are not skipped.
 func (ht *CowHashTable) isResize() bool {
-	
+
 	if (ht._nbucket * ht._factor) < (ht._nitem * 100) {
 		return ht.resize(ht._nitem * 190 / ht._factor)
 	}
@@ -281,15 +312,14 @@ func (ht *CowHashTable) Clear() {
 		ht._table = nil
 	}
 }
-
 //search match key from CowHashTable
 //Return item address
-func (ht *CowHashTable) Seek(key interface{}) interface{} {
+func (ht *CowHashTable) Find(key interface{}, cluster interface{}) interface{} {
 
 	bkt := ht._handler.Hash_key(key) % ht._nbucket
 	bucket := ht._table[bkt]
 	for nil != bucket {
-		if ht._handler.Eq_key(key, bucket._item) {
+		if ht._handler.Eq_key(key, bucket._item) && cluster != nil && ht._handler.Eq_cluster(cluster, bucket._item){
 			return bucket._item
 		}
 		bucket = bucket._next
@@ -297,9 +327,26 @@ func (ht *CowHashTable) Seek(key interface{}) interface{} {
 
 	return nil
 }
-func (ht *CowHashTable) PrintInfo() string{
+//search match key from CowHashTable
+//Return item address
+func (ht *CowHashTable) Seek(key interface{}) []interface{} {
+
+	
+	var buf []interface{}
+	bkt := ht._handler.Hash_key(key) % ht._nbucket
+	bucket := ht._table[bkt]
+	for nil != bucket {
+		if ht._handler.Eq_key(key, bucket._item) {
+			buf = append(buf, bucket._item)
+		}
+		bucket = bucket._next
+	}
+	return buf
+}
+func (ht *CowHashTable) PrintInfo() string {
 	return fmt.Sprintf("nbucket:%d ,factor:%d ,nitem:%d", ht._nbucket, ht._factor, ht._nitem)
 }
+
 //find next prime number
 func find_prime(nbucket int) int {
 
